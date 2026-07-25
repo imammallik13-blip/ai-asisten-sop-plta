@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Admin — AI Asisten SOP PLTA Sipansihaporas</title>
+<style>
+  :root {
+    --bg: #0e1a22;
+    --panel: #142530;
+    --panel-2: #1a2e3a;
+    --border: #24404e;
+    --text: #e7eef2;
+    --muted: #85a0ac;
+    --accent: #e3a008;
+    --accent-dim: #7a5a12;
+    --teal: #2fa6a0;
+    --danger: #d9534f;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; min-height: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: 'IBM Plex Sans', -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+  .mono { font-family: 'IBM Plex Mono', 'Courier New', monospace; }
+
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+    padding-top: max(12px, env(safe-area-inset-top));
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .brand .eyebrow { font-size: 11px; letter-spacing: 0.12em; color: var(--accent); text-transform: uppercase; font-weight: 600; }
+  .brand .title { font-size: 15px; font-weight: 700; }
+
+  #main { max-width: 720px; margin: 0 auto; padding: 16px; padding-bottom: 60px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; margin-top: 12px; }
+  label:first-child { margin-top: 0; }
+
+  input[type="text"], input[type="password"], select, textarea {
+    width: 100%;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 9px 10px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 70px; line-height: 1.4; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--teal); outline-offset: -1px; }
+
+  input[type="file"] {
+    width: 100%;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  button {
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    border: none;
+    border-radius: 7px;
+    padding: 9px 14px;
+    cursor: pointer;
+  }
+  .btn-primary { background: var(--accent); color: #241a03; }
+  .btn-secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+  .btn-danger { background: rgba(217,83,79,0.15); color: #f2b8b5; border: 1px solid var(--danger); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+  h2 { font-size: 15px; margin: 0 0 4px 0; }
+  h3 { font-size: 13px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 10px 0; }
+
+  .doc-row {
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .doc-row:last-child { border-bottom: none; }
+  .doc-row-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .doc-row .info { font-size: 13.5px; }
+  .doc-row .info .nomor { color: var(--teal); font-size: 11.5px; display: block; }
+  .doc-row .actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .doc-row .actions button { padding: 6px 10px; font-size: 12px; }
+
+  .status-msg { font-size: 12.5px; margin-top: 8px; }
+  .status-msg.error { color: #f2b8b5; }
+  .status-msg.ok { color: var(--teal); }
+  .status-msg.loading { color: var(--muted); font-style: italic; }
+
+  /* PROGRESS CHUNKING UI */
+  .progress-track {
+    width: 100%;
+    height: 6px;
+    background: var(--panel-2);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--teal);
+    border-radius: 4px;
+    transition: width 0.25s ease;
+  }
+  .progress-fill.incomplete { background: var(--accent); }
+  .progress-label {
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+  }
+  .doc-progress-mini {
+    margin-top: 6px;
+    max-width: 260px;
+  }
+  #doc-progress-box {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .progress-step {
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 1px 0;
+  }
+  .progress-step .mono { width: 14px; flex-shrink: 0; text-align: center; }
+  .progress-step.ok { color: var(--teal); }
+  .progress-step.loading { color: var(--muted); }
+  .progress-step.error { color: #f2b8b5; }
+  .progress-step.pending { color: var(--muted); opacity: 0.55; }
+
+  .step-card { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; background: var(--panel-2); }
+  .step-card img { max-width: 100%; border-radius: 6px; margin-top: 8px; display: block; }
+
+  .photo-gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .photo-thumb {
+    position: relative;
+    width: 84px;
+    height: 84px;
+  }
+  .photo-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    display: block;
+  }
+  .photo-thumb button {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    line-height: 20px;
+    text-align: center;
+    background: var(--danger);
+    color: #fff;
+    font-size: 12px;
+    border-radius: 50%;
+  }
+
+  .hidden { display: none !important; }
+
+  #login-screen { max-width: 340px; margin: 15vh auto 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="eyebrow mono">Admin</span>
+    <span class="title">AI Asisten SOP — PLTA Sipansihaporas</span>
+  </div>
+  <button class="btn-secondary hidden" id="logout-btn">Keluar</button>
+</header>
+
+<div id="main">
+
+  <!-- LOGIN -->
+  <div id="login-screen" class="card">
+    <h2>Login Admin</h2>
+    <label for="login-password">Password</label>
+    <input type="password" id="login-password" placeholder="Masukkan password admin">
+    <div class="btn-row">
+      <button class="btn-primary" id="login-btn">Masuk</button>
+    </div>
+    <div id="login-status" class="status-msg"></div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard-screen" class="hidden">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <h2>Daftar IK/SOP</h2>
+        <div class="btn-row" style="margin-top:0;">
+          <button class="btn-secondary" id="upload-doc-btn">Upload Dokumen (.docx)</button>
+          <button class="btn-primary" id="new-doc-btn">+ Tambah IK Baru (Manual)</button>
+        </div>
+      </div>
+      <div id="doc-list" style="margin-top:12px;"></div>
+    </div>
+  </div>
+
+  <!-- UPLOAD -->
+  <div id="upload-screen" class="hidden">
+    <button class="btn-secondary" id="upload-back-btn" style="margin-bottom:12px;">&larr; Kembali ke Daftar</button>
+    <div class="card">
+      <h2>Upload Dokumen IK/SOP (.docx)</h2>
+      <div class="status-msg" style="color:var(--muted)">
+        Sistem membaca isi file Word &amp; memisahkan bagian (Tujuan, Dokumen Terkait, Sumber Daya, Risiko, Durasi,
+        Persiapan/Pelaksanaan jadi langkah-langkah, Tindakan Akhir, Lampiran) secara otomatis berdasarkan pola template IK.
+        Hasilnya <strong>belum langsung tersimpan</strong> ke database &mdash; kamu tinjau &amp; lengkapi dulu di layar
+        berikutnya, baru simpan.
+      </div>
+      <label for="upload-file-input">File .docx</label>
+      <input type="file" id="upload-file-input" accept=".docx">
+      <div class="btn-row">
+        <button class="btn-primary" id="upload-process-btn">Proses File</button>
+      </div>
+      <div id="upload-status" class="status-msg"></div>
+    </div>
+  </div>
+
+  <!-- EDITOR -->
+  <div id="editor-screen" class="hidden">
+    <button class="btn-secondary" id="back-btn" style="margin-bottom:12px;">&larr; Kembali ke Daftar</button>
+
+    <div class="card hidden" id="upload-banner" style="border-color:var(--accent); background:rgba(227,160,8,0.08);">
+      <strong>Hasil auto-chunk dari file upload &mdash; belum tersimpan.</strong> Tinjau/lengkapi tiap bagian di bawah,
+      simpan metadata dokumen dulu, lalu pakai tombol "Proses &amp; Simpan Semua Bagian" di bawah supaya semuanya
+      tersimpan sekaligus (atau simpan satu-satu seperti biasa kalau mau lebih hati-hati).
+    </div>
+
+    <div class="card" id="doc-progress-card">
+      <h3>Progress Chunking Dokumen</h3>
+      <div id="doc-progress-box"></div>
+    </div>
+
+    <div class="card">
+      <h3>Metadata Dokumen</h3>
+      <label for="f-nomor-ik">Nomor IK</label>
+      <input type="text" id="f-nomor-ik" placeholder="IKPD-306-14.2.1.4.a.h-006">
+      <label for="f-judul">Judul</label>
+      <input type="text" id="f-judul" placeholder="PELAKSANAAN ...">
+      <label for="f-unit">Unit</label>
+      <select id="f-unit">
+        <option value="1">Unit 1</option>
+        <option value="2">Unit 2</option>
+      </select>
+      <label for="f-lokasi">Kode Lokasi</label>
+      <input type="text" id="f-lokasi" value="SPH">
+      <label for="f-status">Status Dokumen</label>
+      <select id="f-status">
+        <option value="resmi">Resmi</option>
+        <option value="percobaan_fixed">Percobaan/Fixed (belum resmi)</option>
+      </select>
+      <div class="btn-row">
+        <button class="btn-primary" id="save-doc-btn">Simpan Dokumen</button>
+        <button class="btn-danger hidden" id="delete-doc-btn">Hapus Dokumen Ini</button>
+      </div>
+      <div id="doc-status" class="status-msg"></div>
+    </div>
+
+    <div class="card hidden" id="bulk-save-card">
+      <h3>Simpan Massal</h3>
+      <div class="status-msg" style="color:var(--muted)">
+        Memproses &amp; menyimpan semua bagian di bawah yang belum tersimpan sekaligus (termasuk membuat embedding-nya).
+        Berjalan di server &mdash; halaman ini akan otomatis memantau progressnya, tidak perlu ditunggu di 1 layar terus.
+      </div>
+      <div class="btn-row">
+        <button class="btn-primary" id="bulk-save-btn">Proses &amp; Simpan Semua Bagian yang Belum Tersimpan</button>
+      </div>
+      <div id="bulk-progress-box" style="margin-top:10px;"></div>
+    </div>
+
+    <div id="sections-container" class="hidden"></div>
+
+    <div id="steps-container" class="card hidden">
+      <h3>Langkah Prosedur</h3>
+      <div id="steps-list"></div>
+      <div class="btn-row">
+        <button class="btn-secondary" id="add-step-btn">+ Tambah Langkah</button>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  const API = '/admin/api';
+
+  const SECTION_DEFS = [
+    { key: 'ringkasan', label: 'Tujuan / Ruang Lingkup / Definisi', section_type: 'ringkasan' },
+    { key: 'dokumen_terkait', label: 'Dokumen Terkait', section_type: 'referensi' },
+    { key: 'sumber_daya', label: 'Sumber Daya (SDM & Alat)', section_type: 'referensi' },
+    { key: 'risiko', label: 'Identifikasi & Mitigasi Risiko (K3)', section_type: 'referensi' },
+    { key: 'durasi', label: 'Durasi & Parameter Keberhasilan', section_type: 'referensi' },
+    { key: 'tindakan_akhir', label: 'Tindakan Akhir', section_type: 'tindakan_akhir' },
+    { key: 'lampiran', label: 'Lampiran', section_type: 'referensi' },
+  ];
+  const SECTION_LABELS = SECTION_DEFS.map((s) => s.label);
+
+  let state = { docId: null, sections: {}, steps: [] };
+
+  const loginScreen = document.getElementById('login-screen');
+  const dashboardScreen = document.getElementById('dashboard-screen');
+  const uploadScreen = document.getElementById('upload-screen');
+  const editorScreen = document.getElementById('editor-screen');
+  const logoutBtn = document.getElementById('logout-btn');
+
+  function showScreen(name) {
+    loginScreen.classList.toggle('hidden', name !== 'login');
+    dashboardScreen.classList.toggle('hidden', name !== 'dashboard');
+    uploadScreen.classList.toggle('hidden', name !== 'upload');
+    editorScreen.classList.toggle('hidden', name !== 'editor');
+    logoutBtn.classList.toggle('hidden', name === 'login');
+  }
+
+  async function checkAuth() {
+    const res = await fetch(API + '/check');
+    if (res.ok) { showScreen('dashboard'); loadDocuments(); }
+    else showScreen('login');
+  }
+
+  document.getElementById('login-btn').addEventListener('click', async () => {
+    const password = document.getElementById('login-password').value;
+    const statusEl = document.getElementById('login-status');
+    statusEl.textContent = 'Memeriksa...';
+    statusEl.className = 'status-msg loading';
+    try {
+      const res = await fetch(API + '/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { statusEl.textContent = data.error; statusEl.className = 'status-msg error'; return; }
+      statusEl.textContent = '';
+      showScreen('dashboard');
+      loadDocuments();
+    } catch (err) {
+      statusEl.textContent = err.message; statusEl.className = 'status-msg error';
+    }
+  });
+
+  logoutBtn.addEventListener('click', async () => {
+    await fetch(API + '/logout', { method: 'POST' });
+    showScreen('login');
+  });
+
+  // ---------- PROGRESS HELPERS ----------
+
+  // Render status sebagai checklist bertahap (mis. Mengunggah foto -> Menyimpan & embedding -> Tersimpan)
+  // dipakai untuk saveSection/saveStep supaya proses chunking terlihat jelas, bukan cuma 1 baris teks.
+  function renderStepStatus(el, items) {
+    el.innerHTML = items.map((it) => {
+      const icon = it.state === 'ok' ? '✓' : it.state === 'error' ? '✗' : it.state === 'loading' ? '…' : '○';
+      return `<div class="progress-step ${it.state}"><span class="mono">${icon}</span><span>${it.label}</span></div>`;
+    }).join('');
+  }
+
+  function renderProgressBar(container, done, total, doneLabel) {
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    const complete = total > 0 && done >= total;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+      <div class="progress-label"><span>${doneLabel}</span><span class="mono">${done}/${total} (${pct}%)</span></div>
+      <div class="progress-track"><div class="progress-fill ${complete ? '' : 'incomplete'}" style="width:${pct}%"></div></div>
+    `;
+    container.appendChild(wrap);
+  }
+
+  // Progress dokumen di layar editor: bagian umum (7 section wajib) + langkah prosedur yang sudah ditambahkan.
+  function updateDocProgress() {
+    const box = document.getElementById('doc-progress-box');
+    box.innerHTML = '';
+    if (!state.docId) {
+      box.innerHTML = '<div class="status-msg" style="color:var(--muted)">Simpan metadata dokumen dulu untuk mulai mengisi & memantau progress chunking.</div>';
+      return;
+    }
+    const sectionsDone = Object.values(state.sections).filter((s) => s.dbId).length;
+    const sectionsTotal = SECTION_DEFS.length;
+    const stepsDone = state.steps.filter((s) => s.dbId).length;
+    const stepsTotal = state.steps.length;
+
+    renderProgressBar(box, sectionsDone, sectionsTotal, 'Bagian umum (ringkasan, referensi, dll.)');
+    if (stepsTotal > 0) {
+      renderProgressBar(box, stepsDone, stepsTotal, 'Langkah prosedur ditambahkan & tersimpan');
+    } else {
+      const note = document.createElement('div');
+      note.className = 'status-msg';
+      note.style.color = 'var(--muted)';
+      note.textContent = 'Belum ada langkah prosedur ditambahkan.';
+      box.appendChild(note);
+    }
+  }
+
+  // ---------- DASHBOARD ----------
+
+  async function loadDocuments() {
+    const listEl = document.getElementById('doc-list');
+    listEl.textContent = 'Memuat...';
+    const res = await fetch(API + '/documents');
+    const data = await res.json();
+    if (!res.ok) { listEl.textContent = 'Gagal memuat: ' + data.error; return; }
+
+    listEl.innerHTML = '';
+    data.documents.forEach((doc) => {
+      const chunks = doc.chunks || [];
+      const totalChunk = chunks.length;
+      const sectionsDoneSet = new Set(chunks.filter((c) => SECTION_LABELS.includes(c.label)).map((c) => c.label));
+      const sectionsDone = sectionsDoneSet.size;
+      const sectionsTotal = SECTION_DEFS.length;
+      const stepsCount = chunks.filter((c) => c.section_type === 'prosedur').length;
+      const pct = Math.round((sectionsDone / sectionsTotal) * 100);
+      const complete = sectionsDone >= sectionsTotal;
+
+      const row = document.createElement('div');
+      row.className = 'doc-row';
+      row.innerHTML = `
+        <div class="doc-row-top">
+          <div class="info">
+            <span class="nomor mono">${doc.nomor_ik} — Unit ${doc.unit} / ${doc.lokasi}</span>
+            ${doc.judul}
+          </div>
+          <div class="actions">
+            <button class="btn-secondary" data-edit="${doc.id}">Edit</button>
+          </div>
+        </div>
+        <div class="doc-progress-mini">
+          <div class="progress-label">
+            <span>${totalChunk} chunk tersimpan &bull; ${stepsCount} langkah prosedur</span>
+            <span class="mono">bagian umum ${sectionsDone}/${sectionsTotal}</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill ${complete ? '' : 'incomplete'}" style="width:${pct}%"></div></div>
+        </div>
+      `;
+      listEl.appendChild(row);
+    });
+
+    listEl.querySelectorAll('[data-edit]').forEach((btn) => {
+      btn.addEventListener('click', () => openEditor(btn.dataset.edit));
+    });
+  }
+
+  document.getElementById('new-doc-btn').addEventListener('click', () => openEditor(null));
+  document.getElementById('back-btn').addEventListener('click', () => { showScreen('dashboard'); loadDocuments(); });
+
+  document.getElementById('upload-doc-btn').addEventListener('click', () => {
+    document.getElementById('upload-file-input').value = '';
+    document.getElementById('upload-status').textContent = '';
+    showScreen('upload');
+  });
+  document.getElementById('upload-back-btn').addEventListener('click', () => showScreen('dashboard'));
+  document.getElementById('upload-process-btn').addEventListener('click', uploadAndParse);
+  document.getElementById('bulk-save-btn').addEventListener('click', bulkSaveAll);
+
+  async function uploadAndParse() {
+    const fileInput = document.getElementById('upload-file-input');
+    const statusEl = document.getElementById('upload-status');
+    if (!fileInput.files || !fileInput.files[0]) {
+      statusEl.textContent = 'Pilih file .docx dulu.';
+      statusEl.className = 'status-msg error';
+      return;
+    }
+
+    renderStepStatus(statusEl, [{ label: 'Membaca & memecah dokumen menjadi bagian (parsing + chunking otomatis)', state: 'loading' }]);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      const res = await fetch(API + '/documents/parse-upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) {
+        renderStepStatus(statusEl, [{ label: 'Gagal memproses file: ' + data.error, state: 'error' }]);
+        return;
+      }
+      renderStepStatus(statusEl, [{ label: `Berhasil, ditemukan ${data.chunks.length} bagian. Membuka editor untuk ditinjau...`, state: 'ok' }]);
+      setTimeout(() => openEditorFromParsed(data), 500);
+    } catch (err) {
+      renderStepStatus(statusEl, [{ label: err.message, state: 'error' }]);
+    }
+  }
+
+  function openEditorFromParsed(data) {
+    state = { docId: null, sections: {}, steps: [] };
+    SECTION_DEFS.forEach((s) => { state.sections[s.key] = { dbId: null, text: '', photo_urls: [] }; });
+
+    document.getElementById('f-nomor-ik').value = data.metadata?.nomor_dokumen || '';
+    document.getElementById('f-judul').value = data.metadata?.judul || '';
+    document.getElementById('f-unit').value = '1';
+    document.getElementById('f-lokasi').value = 'SPH';
+    document.getElementById('f-status').value = 'resmi';
+    document.getElementById('sections-container').classList.remove('hidden');
+    document.getElementById('steps-container').classList.remove('hidden');
+    document.getElementById('bulk-save-card').classList.remove('hidden');
+    document.getElementById('delete-doc-btn').classList.add('hidden');
+    document.getElementById('doc-status').textContent = 'Belum tersimpan -- simpan metadata dokumen dulu di bawah.';
+    document.getElementById('doc-status').className = 'status-msg';
+    document.getElementById('upload-banner').classList.remove('hidden');
+
+    (data.chunks || []).forEach((c) => {
+      const matchedSection = SECTION_DEFS.find((s) => s.label === c.label && c.section_type !== 'prosedur');
+      if (matchedSection) {
+        state.sections[matchedSection.key] = { dbId: null, text: c.text, photo_urls: [] };
+      } else {
+        state.steps.push({ dbId: null, label: c.label, text: c.text, photo_url: null });
+      }
+    });
+
+    renderSections();
+    renderSteps();
+    updateDocProgress();
+    showScreen('editor');
+  }
+
+  function collectPendingItems() {
+    const items = [];
+    SECTION_DEFS.forEach((def) => {
+      const sec = state.sections[def.key];
+      if (sec.dbId) return; // sudah tersimpan -> pakai tombol Simpan/Update masing-masing, bukan bagian dari simpan massal
+      const textarea = document.querySelector(`textarea[data-section="${def.key}"]`);
+      const text = textarea ? textarea.value.trim() : '';
+      if (!text) return;
+      const payload = { section_type: def.section_type, label: def.label, text };
+      if (def.key === 'lampiran') payload.photo_urls = sec.photo_urls || [];
+      items.push(payload);
+    });
+    state.steps.forEach((step, idx) => {
+      if (step.dbId) return;
+      const labelInput = document.querySelector(`[data-step-label="${idx}"]`);
+      const textArea = document.querySelector(`[data-step-text="${idx}"]`);
+      const label = labelInput ? labelInput.value.trim() : '';
+      const text = textArea ? textArea.value.trim() : '';
+      if (!label || !text) return;
+      items.push({ section_type: 'prosedur', label, text, photo_url: step.photo_url || null });
+    });
+    return items;
+  }
+
+  async function bulkSaveAll() {
+    if (!state.docId) { alert('Simpan metadata dokumen dulu (tombol "Simpan Dokumen" di atas).'); return; }
+    const items = collectPendingItems();
+    if (items.length === 0) {
+      alert('Tidak ada bagian yang perlu diproses (semua sudah tersimpan, atau semua kosong).');
+      return;
+    }
+    const estMinutes = Math.ceil((items.length * 21) / 60);
+    if (!confirm(`Proses & simpan ${items.length} bagian sekaligus? Karena batas kecepatan Voyage AI, ini bisa makan waktu sekitar ${estMinutes} menit. Kamu boleh pindah layar lain sambil menunggu.`)) return;
+
+    const box = document.getElementById('bulk-progress-box');
+    box.innerHTML = '<div class="status-msg loading">Memulai proses di server...</div>';
+
+    try {
+      const res = await fetch(API + '/documents/' + state.docId + '/chunks/bulk', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chunks: items }),
+      });
+      const data = await res.json();
+      if (!res.ok) { box.innerHTML = '<div class="status-msg error">Gagal memulai: ' + data.error + '</div>'; return; }
+      pollBulkJob(data.job_id);
+    } catch (err) {
+      box.innerHTML = '<div class="status-msg error">' + err.message + '</div>';
+    }
+  }
+
+  function pollBulkJob(jobId) {
+    const box = document.getElementById('bulk-progress-box');
+    const check = async () => {
+      try {
+        const res = await fetch(API + '/documents/bulk-jobs/' + jobId);
+        const job = await res.json();
+        if (!res.ok) { box.innerHTML = '<div class="status-msg error">' + job.error + '</div>'; return; }
+
+        const pct = job.total > 0 ? Math.round((job.done / job.total) * 100) : 0;
+        const currentLabel = job.status === 'processing' && job.current_label ? `Sedang memproses: ${job.current_label}` : '';
+        const errorsHtml = (job.errors && job.errors.length)
+          ? `<div class="status-msg error" style="margin-top:6px;">${job.errors.length} bagian gagal: ${job.errors.map((e) => e.label + ' (' + e.message + ')').join('; ')}</div>`
+          : '';
+
+        box.innerHTML = `
+          <div class="progress-label"><span>Menyimpan &amp; membuat embedding (Voyage AI)</span><span class="mono">${job.done}/${job.total} (${pct}%)</span></div>
+          <div class="progress-track"><div class="progress-fill ${job.status === 'completed' ? '' : 'incomplete'}" style="width:${pct}%"></div></div>
+          <div class="status-msg loading" style="margin-top:6px;">${currentLabel}</div>
+          ${errorsHtml}
+        `;
+
+        if (job.status === 'processing') {
+          setTimeout(check, 3000);
+        } else {
+          box.innerHTML += '<div class="status-msg ok" style="margin-top:6px;">Selesai. Memuat ulang dokumen...</div>';
+          setTimeout(() => openEditor(state.docId), 1200);
+        }
+      } catch (err) {
+        box.innerHTML = '<div class="status-msg error">' + err.message + '</div>';
+      }
+    };
+    check();
+  }
+
+  async function openEditor(docId) {
+    state = { docId: null, sections: {}, steps: [] };
+    SECTION_DEFS.forEach((s) => { state.sections[s.key] = { dbId: null, text: '', photo_urls: [] }; });
+
+    document.getElementById('f-nomor-ik').value = '';
+    document.getElementById('f-judul').value = '';
+    document.getElementById('f-unit').value = '1';
+    document.getElementById('f-lokasi').value = 'SPH';
+    document.getElementById('f-status').value = 'resmi';
+    document.getElementById('sections-container').classList.add('hidden');
+    document.getElementById('steps-container').classList.add('hidden');
+    document.getElementById('bulk-save-card').classList.add('hidden');
+    document.getElementById('bulk-progress-box').innerHTML = '';
+    document.getElementById('upload-banner').classList.add('hidden');
+    document.getElementById('delete-doc-btn').classList.add('hidden');
+    document.getElementById('doc-status').textContent = '';
+
+    if (docId) {
+      const res = await fetch(API + '/documents/' + docId);
+      const data = await res.json();
+      if (!res.ok) { alert('Gagal memuat dokumen: ' + data.error); return; }
+
+      state.docId = docId;
+      document.getElementById('f-nomor-ik').value = data.document.nomor_ik;
+      document.getElementById('f-judul').value = data.document.judul;
+      document.getElementById('f-unit').value = data.document.unit;
+      document.getElementById('f-lokasi').value = data.document.lokasi;
+      document.getElementById('f-status').value = data.document.status_dokumen;
+
+      data.chunks.forEach((c) => {
+        const matchedSection = SECTION_DEFS.find((s) => s.label === c.label);
+        if (matchedSection && c.section_type !== 'prosedur') {
+          const photoUrls = c.metadata?.photo_urls || (c.metadata?.photo_url ? [c.metadata.photo_url] : []);
+          state.sections[matchedSection.key] = { dbId: c.id, text: c.text, photo_urls: photoUrls };
+        } else {
+          state.steps.push({ dbId: c.id, label: c.label, text: c.text, photo_url: c.metadata?.photo_url || null });
+        }
+      });
+
+      renderSections();
+      renderSteps();
+      document.getElementById('sections-container').classList.remove('hidden');
+      document.getElementById('steps-container').classList.remove('hidden');
+      document.getElementById('bulk-save-card').classList.remove('hidden');
+      document.getElementById('delete-doc-btn').classList.remove('hidden');
+    }
+
+    updateDocProgress();
+    showScreen('editor');
+  }
+
+  document.getElementById('save-doc-btn').addEventListener('click', async () => {
+    const statusEl = document.getElementById('doc-status');
+    const payload = {
+      nomor_ik: document.getElementById('f-nomor-ik').value.trim(),
+      judul: document.getElementById('f-judul').value.trim(),
+      unit: document.getElementById('f-unit').value,
+      lokasi: document.getElementById('f-lokasi').value.trim(),
+      status_dokumen: document.getElementById('f-status').value,
+    };
+    if (!payload.nomor_ik || !payload.judul) {
+      statusEl.textContent = 'Nomor IK dan Judul wajib diisi.';
+      statusEl.className = 'status-msg error';
+      return;
+    }
+
+    statusEl.textContent = 'Menyimpan...';
+    statusEl.className = 'status-msg loading';
+
+    try {
+      let res, data;
+      if (state.docId) {
+        res = await fetch(API + '/documents/' + state.docId, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+        });
+        data = await res.json();
+      } else {
+        res = await fetch(API + '/documents', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+        });
+        data = await res.json();
+        if (res.ok) state.docId = data.id;
+      }
+
+      if (!res.ok) { statusEl.textContent = 'Gagal: ' + data.error; statusEl.className = 'status-msg error'; return; }
+
+      statusEl.textContent = 'Tersimpan.';
+      statusEl.className = 'status-msg ok';
+      const secContainer = document.getElementById('sections-container');
+      secContainer.classList.remove('hidden');
+      document.getElementById('steps-container').classList.remove('hidden');
+      document.getElementById('bulk-save-card').classList.remove('hidden');
+      document.getElementById('delete-doc-btn').classList.remove('hidden');
+      if (secContainer.children.length === 0) {
+        renderSections();
+        renderSteps();
+      }
+      updateDocProgress();
+    } catch (err) {
+      statusEl.textContent = err.message; statusEl.className = 'status-msg error';
+    }
+  });
+
+  document.getElementById('delete-doc-btn').addEventListener('click', async () => {
+    if (!confirm('Yakin hapus dokumen ini beserta seluruh chunk-nya? Tindakan ini tidak bisa dibatalkan.')) return;
+    const res = await fetch(API + '/documents/' + state.docId, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) { alert('Gagal hapus: ' + data.error); return; }
+    showScreen('dashboard');
+    loadDocuments();
+  });
+
+  // ---------- SECTIONS (termasuk Lampiran dengan galeri foto) ----------
+
+  function renderSections() {
+    const container = document.getElementById('sections-container');
+    container.innerHTML = '';
+    SECTION_DEFS.forEach((def) => {
+      const sec = state.sections[def.key];
+      const isLampiran = def.key === 'lampiran';
+
+      const card = document.createElement('div');
+      card.className = 'card';
+
+      let galleryHtml = '';
+      if (isLampiran) {
+        const thumbs = (sec.photo_urls || []).map((url, i) => `
+          <div class="photo-thumb">
+            <img src="${url}" alt="Lampiran ${i + 1}">
+            <button type="button" data-remove-photo="${i}" aria-label="Hapus foto">&times;</button>
+          </div>
+        `).join('');
+        galleryHtml = `
+          <label>Foto / Scan Lampiran (opsional, bisa lebih dari satu)</label>
+          <input type="file" accept="image/*" data-lampiran-photo-input>
+          <div class="btn-row">
+            <button type="button" class="btn-secondary" data-lampiran-upload>Unggah Foto</button>
+          </div>
+          <div class="photo-gallery" data-lampiran-gallery>${thumbs}</div>
+        `;
+      }
+
+      card.innerHTML = `
+        <h3>${def.label}</h3>
+        <textarea data-section="${def.key}" rows="4">${sec.text || ''}</textarea>
+        ${galleryHtml}
+        <div class="btn-row">
+          <button class="btn-primary" data-save-section="${def.key}">${sec.dbId ? 'Update' : 'Simpan'}</button>
+        </div>
+        <div class="status-msg" data-status-section="${def.key}"></div>
+      `;
+      container.appendChild(card);
+    });
+
+    container.querySelectorAll('[data-save-section]').forEach((btn) => {
+      btn.addEventListener('click', () => saveSection(btn.dataset.saveSection));
+    });
+    container.querySelectorAll('[data-lampiran-upload]').forEach((btn) => {
+      btn.addEventListener('click', uploadLampiranPhoto);
+    });
+    container.querySelectorAll('[data-remove-photo]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.removePhoto, 10);
+        state.sections.lampiran.photo_urls.splice(idx, 1);
+        renderSections();
+      });
+    });
+  }
+
+  async function uploadLampiranPhoto() {
+    const fileInput = document.querySelector('[data-lampiran-photo-input]');
+    const statusEl = document.querySelector('[data-status-section="lampiran"]');
+    if (!fileInput.files || !fileInput.files[0]) {
+      statusEl.textContent = 'Pilih file foto dulu.';
+      statusEl.className = 'status-msg error';
+      return;
+    }
+
+    renderStepStatus(statusEl, [{ label: 'Mengunggah foto ke penyimpanan', state: 'loading' }]);
+
+    try {
+      const formData = new FormData();
+      formData.append('photo', fileInput.files[0]);
+      const res = await fetch(API + '/upload-photo', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) {
+        renderStepStatus(statusEl, [{ label: 'Mengunggah foto ke penyimpanan', state: 'error' }]);
+        return;
+      }
+      state.sections.lampiran.photo_urls.push(data.url);
+      fileInput.value = '';
+      renderSections();
+      const newStatusEl = document.querySelector('[data-status-section="lampiran"]');
+      renderStepStatus(newStatusEl, [{ label: 'Foto terunggah. Klik Simpan/Update untuk menyimpannya ke dokumen.', state: 'ok' }]);
+    } catch (err) {
+      renderStepStatus(statusEl, [{ label: 'Gagal unggah: ' + err.message, state: 'error' }]);
+    }
+  }
+
+  async function saveSection(key) {
+    const def = SECTION_DEFS.find((s) => s.key === key);
+    const textarea = document.querySelector(`textarea[data-section="${key}"]`);
+    const statusEl = document.querySelector(`[data-status-section="${key}"]`);
+    const text = textarea.value.trim();
+    if (!text) { statusEl.textContent = 'Isi teks dulu.'; statusEl.className = 'status-msg error'; return; }
+
+    const sec = state.sections[key];
+    const isLampiran = key === 'lampiran';
+
+    const stepItems = [
+      { label: 'Menyimpan teks & membuat embedding (Voyage AI)', state: 'loading' },
+      { label: 'Menyimpan ke database Supabase', state: 'pending' },
+    ];
+    renderStepStatus(statusEl, stepItems);
+
+    try {
+      let res, data;
+      const payload = { label: def.label, text, section_type: def.section_type };
+      if (isLampiran) payload.photo_urls = sec.photo_urls || [];
+
+      if (sec.dbId) {
+        res = await fetch(API + '/chunks/' + sec.dbId, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        data = await res.json();
+      } else {
+        res = await fetch(API + '/documents/' + state.docId + '/chunks', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        data = await res.json();
+        if (res.ok) sec.dbId = data.id;
+      }
+      sec.text = text;
+
+      if (!res.ok) {
+        stepItems[0].state = 'error';
+        renderStepStatus(statusEl, stepItems);
+        return;
+      }
+
+      stepItems[0].state = 'ok';
+      stepItems[1].state = 'ok';
+      renderStepStatus(statusEl, stepItems);
+      renderSections();
+      updateDocProgress();
+    } catch (err) {
+      stepItems[0].state = 'error';
+      renderStepStatus(statusEl, [{ label: err.message, state: 'error' }]);
+    }
+  }
+
+  // ---------- LANGKAH PROSEDUR ----------
+
+  function renderSteps() {
+    const listEl = document.getElementById('steps-list');
+    listEl.innerHTML = '';
+    state.steps.forEach((step, idx) => {
+      const card = document.createElement('div');
+      card.className = 'step-card';
+      card.innerHTML = `
+        <label>Judul Langkah</label>
+        <input type="text" data-step-label="${idx}" value="${step.label ? step.label.replace(/"/g, '&quot;') : ''}" placeholder="misal: Buka Guide Vane perlahan">
+        <label>Deskripsi Langkah</label>
+        <textarea data-step-text="${idx}" rows="3">${step.text || ''}</textarea>
+        <label>Foto (opsional)</label>
+        <input type="file" accept="image/*" data-step-photo="${idx}">
+        ${step.photo_url ? `<img src="${step.photo_url}" alt="Foto langkah">` : ''}
+        <div class="btn-row">
+          <button class="btn-primary" data-save-step="${idx}">${step.dbId ? 'Update' : 'Simpan'} Langkah</button>
+          <button class="btn-danger" data-delete-step="${idx}">Hapus Langkah</button>
+        </div>
+        <div class="status-msg" data-status-step="${idx}"></div>
+      `;
+      listEl.appendChild(card);
+    });
+
+    listEl.querySelectorAll('[data-save-step]').forEach((btn) => {
+      btn.addEventListener('click', () => saveStep(parseInt(btn.dataset.saveStep, 10)));
+    });
+    listEl.querySelectorAll('[data-delete-step]').forEach((btn) => {
+      btn.addEventListener('click', () => deleteStep(parseInt(btn.dataset.deleteStep, 10)));
+    });
+  }
+
+  document.getElementById('add-step-btn').addEventListener('click', () => {
+    state.steps.push({ dbId: null, label: '', text: '', photo_url: null });
+    renderSteps();
+    updateDocProgress();
+  });
+
+  async function saveStep(idx) {
+    const step = state.steps[idx];
+    const label = document.querySelector(`[data-step-label="${idx}"]`).value.trim();
+    const text = document.querySelector(`[data-step-text="${idx}"]`).value.trim();
+    const fileInput = document.querySelector(`[data-step-photo="${idx}"]`);
+    const statusEl = document.querySelector(`[data-status-step="${idx}"]`);
+
+    if (!label || !text) { statusEl.textContent = 'Judul dan deskripsi wajib diisi.'; statusEl.className = 'status-msg error'; return; }
+
+    const hasNewPhoto = !!(fileInput.files && fileInput.files[0]);
+    const stepItems = [];
+    if (hasNewPhoto) stepItems.push({ label: 'Mengunggah foto langkah', state: 'loading' });
+    stepItems.push({ label: 'Menyimpan teks & membuat embedding (Voyage AI)', state: hasNewPhoto ? 'pending' : 'loading' });
+    stepItems.push({ label: 'Menyimpan ke database Supabase', state: 'pending' });
+    renderStepStatus(statusEl, stepItems);
+
+    try {
+      let photoUrl = step.photo_url;
+      if (hasNewPhoto) {
+        const formData = new FormData();
+        formData.append('photo', fileInput.files[0]);
+        const uploadRes = await fetch(API + '/upload-photo', { method: 'POST', body: formData });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) {
+          stepItems[0].state = 'error';
+          renderStepStatus(statusEl, stepItems);
+          return;
+        }
+        photoUrl = uploadData.url;
+        stepItems[0].state = 'ok';
+        stepItems[1].state = 'loading';
+        renderStepStatus(statusEl, stepItems);
+      }
+
+      let res, data;
+      if (step.dbId) {
+        res = await fetch(API + '/chunks/' + step.dbId, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ label, text, section_type: 'prosedur', photo_url: photoUrl }),
+        });
+        data = await res.json();
+      } else {
+        res = await fetch(API + '/documents/' + state.docId + '/chunks', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ label, text, section_type: 'prosedur', photo_url: photoUrl }),
+        });
+        data = await res.json();
+        if (res.ok) step.dbId = data.id;
+      }
+
+      if (!res.ok) {
+        stepItems[stepItems.length - 2].state = 'error';
+        renderStepStatus(statusEl, stepItems);
+        return;
+      }
+
+      step.label = label; step.text = text; step.photo_url = photoUrl;
+      stepItems.forEach((it) => { it.state = 'ok'; });
+      renderStepStatus(statusEl, stepItems);
+      renderSteps();
+      updateDocProgress();
+    } catch (err) {
+      renderStepStatus(statusEl, [{ label: err.message, state: 'error' }]);
+    }
+  }
+
+  async function deleteStep(idx) {
+    const step = state.steps[idx];
+    if (step.dbId) {
+      if (!confirm('Hapus langkah ini dari database?')) return;
+      const res = await fetch(API + '/chunks/' + step.dbId, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) { alert('Gagal hapus: ' + data.error); return; }
+    }
+    state.steps.splice(idx, 1);
+    renderSteps();
+    updateDocProgress();
+  }
+
+  checkAuth();
+</script>
+</body>
+</html>

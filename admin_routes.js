@@ -10,10 +10,34 @@
 const express = require('express');
 const crypto = require('crypto');
 const multer = require('multer');
+const { parseDocxToChunks } = require('./ik_docx_parser');
 
 function createAdminRouter({ supabase, embedDocumentText, adminPassword }) {
   const router = express.Router();
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }); // maks 5MB/foto
+  const uploadDoc = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } }); // maks 20MB/dokumen .docx
+
+  // ---------- JOB STORE: proses simpan massal (upload -> auto-chunk -> banyak chunk sekaligus) ----------
+  // Sama seperti validSessions di bawah: disimpan di memori server (bukan database), sederhana untuk MVP.
+  // Konsekuensi: kalau server restart di tengah proses, progress job yang sedang berjalan hilang
+  // (tapi chunk yang SUDAH sempat tersimpan sebelum restart tetap aman di database).
+  const bulkJobs = new Map(); // jobId -> { status, total, done, current_label, errors: [], createdAt }
+  const JOB_TTL_MS = 60 * 60 * 1000; // job lama dibuang otomatis setelah 1 jam supaya memori tidak terus bertambah
+
+  function cleanOldJobs() {
+    const now = Date.now();
+    for (const [id, job] of bulkJobs) {
+      if (now - job.createdAt > JOB_TTL_MS) bulkJobs.delete(id);
+    }
+  }
+
+  // Voyage AI membatasi akun tanpa payment method jadi 3 request/menit -- proses simpan massal
+  // sengaja dikasih jeda antar chunk (sama seperti generate_embeddings.js) supaya tidak terus-menerus
+  // kena 429, dan supaya progress-nya bisa diperkirakan (jumlah chunk x ~22 detik).
+  const BULK_DELAY_BETWEEN_CHUNKS_MS = 21000;
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
 
   // Sesi login disimpan di memori server (bukan database) -> sederhana untuk MVP.
   // Konsekuensi: kalau server di-restart, semua orang yang login harus login ulang. Ini oke untuk skala saat ini.
@@ -84,13 +108,117 @@ function createAdminRouter({ supabase, embedDocumentText, adminPassword }) {
     }
   });
 
+  // ---------- UPLOAD DOKUMEN IK/SOP (.docx) -> AUTO PARSING + AUTO CHUNKING ----------
+  // Murni proses teks lokal (parsing docx + heuristik chunking), TIDAK memanggil Voyage/embedding
+  // di sini -- makanya bisa langsung selesai dalam hitungan detik meski dokumennya panjang.
+  // Hasilnya BELUM disimpan ke database sama sekali; admin_routes ini cuma "membaca & memecah",
+  // penyimpanan sungguhan terjadi lewat endpoint chunk yang sudah ada (satu-satu) atau lewat
+  // /documents/:id/chunks/bulk (banyak sekaligus) setelah admin meninjau hasilnya di halaman admin.
+  router.post('/documents/parse-upload', requireAdmin, uploadDoc.single('file'), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: 'File .docx wajib diisi.' });
+      const ext = (req.file.originalname.split('.').pop() || '').toLowerCase();
+      if (ext !== 'docx') {
+        return res.status(400).json({ error: 'Format file belum didukung. Saat ini hanya .docx yang bisa diproses otomatis (file .doc lama perlu disimpan ulang sebagai .docx dulu).' });
+      }
+
+      const fallbackName = req.file.originalname.replace(/\.docx$/i, '');
+      const result = await parseDocxToChunks(req.file.buffer, fallbackName);
+
+      if (!result.chunks.length) {
+        return res.status(422).json({ error: 'Tidak ada bagian yang berhasil dikenali dari file ini. Kemungkinan format dokumen berbeda dari template IK yang biasa dipakai -- coba isi manual saja untuk dokumen ini.' });
+      }
+
+      res.json({ metadata: result.metadata, chunks: result.chunks });
+    } catch (err) {
+      res.status(500).json({ error: 'Gagal memproses file: ' + err.message });
+    }
+  });
+
+  // ---------- SIMPAN MASSAL (dipakai setelah review hasil auto-chunk, atau menyimpan banyak langkah sekaligus) ----------
+
+  router.post('/documents/:id/chunks/bulk', requireAdmin, async (req, res) => {
+    try {
+      const { chunks } = req.body;
+      if (!Array.isArray(chunks) || chunks.length === 0) {
+        return res.status(400).json({ error: 'Tidak ada bagian yang dikirim untuk diproses.' });
+      }
+
+      const { data: doc, error: docErr } = await supabase
+        .from('documents')
+        .select('nomor_ik, judul')
+        .eq('id', req.params.id)
+        .single();
+      if (docErr) throw new Error(docErr.message);
+
+      cleanOldJobs();
+      const jobId = crypto.randomUUID();
+      const job = { status: 'processing', total: chunks.length, done: 0, current_label: null, errors: [], createdAt: Date.now() };
+      bulkJobs.set(jobId, job);
+
+      // Diproses di background (tidak di-await) -- endpoint langsung balas job_id supaya
+      // halaman admin tidak perlu menunggu satu request HTTP yang bisa berlangsung bermenit-menit.
+      (async () => {
+        for (let i = 0; i < chunks.length; i++) {
+          const item = chunks[i];
+          job.current_label = item.label || `Bagian ${i + 1}`;
+          try {
+            if (!item.section_type || !item.label || !item.text) {
+              throw new Error('section_type, label, dan text wajib diisi.');
+            }
+            const embedding = await embedDocumentText(item.text);
+            const chunkId = `${doc.nomor_ik}-${crypto.randomUUID().slice(0, 8)}`;
+            const { error: insertErr } = await supabase
+              .from('chunks')
+              .insert({
+                chunk_id: chunkId,
+                document_id: req.params.id,
+                source_doc: doc.nomor_ik,
+                judul: doc.judul,
+                section_type: item.section_type,
+                label: item.label,
+                text: item.text,
+                embedding,
+                metadata: buildPhotoMetadata(item.photo_url, item.photo_urls),
+              });
+            if (insertErr) throw new Error(insertErr.message);
+            job.done += 1;
+          } catch (itemErr) {
+            job.errors.push({ label: item.label || `Bagian ${i + 1}`, message: itemErr.message });
+          }
+
+          if (i < chunks.length - 1) await sleep(BULK_DELAY_BETWEEN_CHUNKS_MS);
+        }
+        job.current_label = null;
+        job.status = 'completed';
+      })().catch((err) => {
+        job.status = 'completed';
+        job.errors.push({ label: 'Proses keseluruhan', message: err.message });
+      });
+
+      res.json({ job_id: jobId });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/documents/bulk-jobs/:jobId', requireAdmin, (req, res) => {
+    const job = bulkJobs.get(req.params.jobId);
+    if (!job) return res.status(404).json({ error: 'Job tidak ditemukan (mungkin sudah kedaluwarsa atau server sempat restart).' });
+    res.json(job);
+  });
+
   // ---------- DOCUMENTS ----------
 
+  // Catatan: chunks di-select dengan (label, section_type) -- bukan cuma count -- supaya
+  // frontend admin bisa hitung "progress chunking" per dokumen (berapa bagian wajib yang
+  // sudah lengkap vs berapa langkah prosedur yang sudah tersimpan), tanpa perlu query terpisah
+  // per dokumen. Masih aman untuk skala saat ini (jumlah dokumen & chunk kecil).
   router.get('/documents', requireAdmin, async (req, res) => {
     try {
       const { data, error } = await supabase
         .from('documents')
-        .select('id, nomor_ik, judul, unit, lokasi, status_dokumen, chunks(count)')
+        .select('id, nomor_ik, judul, unit, lokasi, status_dokumen, chunks(label, section_type)')
         .order('nomor_ik');
       if (error) throw new Error(error.message);
       res.json({ documents: data });
@@ -174,9 +302,19 @@ function createAdminRouter({ supabase, embedDocumentText, adminPassword }) {
 
   // ---------- CHUNKS (section & langkah prosedur) ----------
 
+  // Catatan foto: `photo_url` (string tunggal) dipakai oleh langkah prosedur (1 foto/langkah).
+  // `photo_urls` (array) dipakai oleh section Lampiran (bisa banyak foto/scan sekaligus).
+  // Keduanya disimpan di kolom metadata jsonb yang sama, cukup beda bentuk field -- tidak
+  // perlu migrasi skema.
+  function buildPhotoMetadata(photo_url, photo_urls) {
+    if (Array.isArray(photo_urls)) return { photo_urls };
+    if (photo_url) return { photo_url };
+    return {};
+  }
+
   router.post('/documents/:id/chunks', requireAdmin, async (req, res) => {
     try {
-      const { section_type, label, text, photo_url } = req.body;
+      const { section_type, label, text, photo_url, photo_urls } = req.body;
       if (!section_type || !label || !text) {
         return res.status(400).json({ error: 'section_type, label, dan text wajib diisi.' });
       }
@@ -202,7 +340,7 @@ function createAdminRouter({ supabase, embedDocumentText, adminPassword }) {
           label,
           text,
           embedding,
-          metadata: photo_url ? { photo_url } : {},
+          metadata: buildPhotoMetadata(photo_url, photo_urls),
         })
         .select('id, chunk_id')
         .single();
@@ -216,7 +354,7 @@ function createAdminRouter({ supabase, embedDocumentText, adminPassword }) {
 
   router.put('/chunks/:id', requireAdmin, async (req, res) => {
     try {
-      const { label, text, section_type, photo_url } = req.body;
+      const { label, text, section_type, photo_url, photo_urls } = req.body;
       if (!text) return res.status(400).json({ error: 'text wajib diisi.' });
 
       const embedding = await embedDocumentText(text);
@@ -228,7 +366,7 @@ function createAdminRouter({ supabase, embedDocumentText, adminPassword }) {
           text,
           section_type,
           embedding,
-          metadata: photo_url ? { photo_url } : {},
+          metadata: buildPhotoMetadata(photo_url, photo_urls),
         })
         .eq('id', req.params.id);
 
