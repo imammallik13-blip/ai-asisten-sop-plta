@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>AI Asisten SOP — PLTA Sipansihaporas</title>
+<style>
+  :root {
+    --bg: #0e1a22;
+    --panel: #142530;
+    --panel-2: #1a2e3a;
+    --border: #24404e;
+    --text: #e7eef2;
+    --muted: #85a0ac;
+    --accent: #e3a008;
+    --accent-dim: #7a5a12;
+    --teal: #2fa6a0;
+    --danger: #d9534f;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+
+  @font-face {
+    font-family: 'IBM Plex Mono';
+    src: local('monospace');
+  }
+
+  .mono {
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    letter-spacing: 0.02em;
+  }
+
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+  }
+
+  /* HEADER */
+  header {
+    flex-shrink: 0;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+    padding-top: max(12px, env(safe-area-inset-top));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .brand {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+  }
+
+  .brand .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .brand .title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--teal);
+    box-shadow: 0 0 6px var(--teal);
+  }
+
+  select {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-family: inherit;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* CHAT LOG */
+  #log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .empty-state {
+    margin: auto;
+    text-align: center;
+    color: var(--muted);
+    max-width: 320px;
+    padding: 24px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+  }
+
+  .empty-state .mono {
+    display: block;
+    font-size: 11px;
+    color: var(--accent);
+    margin-bottom: 8px;
+    letter-spacing: 0.1em;
+  }
+
+  .msg {
+    max-width: 86%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .msg.operator {
+    align-self: flex-end;
+    align-items: flex-end;
+  }
+
+  .msg.ai {
+    align-self: flex-start;
+    align-items: flex-start;
+  }
+
+  .bubble {
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 14.5px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+
+  .msg.operator .bubble {
+    background: var(--teal);
+    color: #06201e;
+    border-bottom-right-radius: 3px;
+  }
+
+  .msg.ai .bubble {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-bottom-left-radius: 3px;
+  }
+
+  .msg.ai .readout-label {
+    font-size: 10px;
+    color: var(--accent);
+    margin-bottom: 6px;
+    letter-spacing: 0.08em;
+  }
+
+  /* Elemen hasil render markdown di dalam bubble jawaban AI */
+  .bubble p { margin: 0 0 8px 0; }
+  .bubble p:last-child { margin-bottom: 0; }
+  .bubble ul, .bubble ol { margin: 4px 0 8px 20px; padding: 0; }
+  .bubble li { margin-bottom: 4px; }
+  .bubble strong { color: var(--accent); font-weight: 700; }
+  .bubble code {
+    background: var(--panel-2);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.92em;
+  }
+
+  .sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .source-chip {
+    font-size: 10.5px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 3px 8px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .source-chip .doc-num {
+    color: var(--teal);
+    font-weight: 600;
+  }
+
+  /* FOTO LAMPIRAN/LANGKAH di bawah jawaban AI */
+  .answer-photos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .answer-photo-thumb {
+    display: block;
+    width: 96px;
+    height: 96px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  .answer-photo-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  /* Kotak highlight pengingat safety-critical (dari tag <PENTING> di jawaban Gemini) */
+  .safety-callout {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border: 1.5px solid var(--danger);
+    background: rgba(217, 83, 79, 0.10);
+    border-radius: 8px;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+
+  .safety-callout .icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    line-height: 1.4;
+  }
+
+  .safety-callout .text {
+    font-size: 13.5px;
+    line-height: 1.45;
+    color: #f2b8b5;
+  }
+
+  .safety-callout .text strong {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--danger);
+    margin-bottom: 3px;
+  }
+
+  /* Feedback 👍/👎 di bawah jawaban AI */
+  .feedback-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .feedback-btn {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  .feedback-btn.up:active { border-color: var(--teal); color: var(--teal); }
+  .feedback-btn.down:active { border-color: var(--danger); color: #f2b8b5; }
+
+  .feedback-note {
+    font-size: 11.5px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .feedback-comment-box {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .feedback-comment-box textarea {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 50px;
+  }
+
+  .feedback-comment-actions { display: flex; gap: 8px; }
+
+  .feedback-comment-actions button {
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 12px;
+    cursor: pointer;
+  }
+
+  .feedback-comment-actions .send { background: var(--accent); color: #241a03; }
+  .feedback-comment-actions .skip { background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); }
+
+  .loading .bubble {
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .error-bubble {
+    background: rgba(217, 83, 79, 0.12) !important;
+    border-color: var(--danger) !important;
+    border-left-color: var(--danger) !important;
+    color: #f2b8b5 !important;
+  }
+
+  /* INPUT AREA */
+  #input-bar {
+    flex-shrink: 0;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    padding: 10px 12px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+  }
+
+  #question {
+    flex: 1;
+    resize: none;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14.5px;
+    font-family: inherit;
+    max-height: 120px;
+    line-height: 1.4;
+  }
+
+  #question:focus {
+    outline: 2px solid var(--teal);
+    outline-offset: -1px;
+  }
+
+  #send-btn {
+    background: var(--accent);
+    color: #241a03;
+    border: none;
+    border-radius: 8px;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  #send-btn:disabled {
+    background: var(--accent-dim);
+    color: #6b5a2e;
+    cursor: not-allowed;
+  }
+
+  #send-btn:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="brand">
+      <span class="eyebrow">AI Asisten SOP</span>
+      <span class="title">PLTA Sipansihaporas</span>
+    </div>
+    <div class="header-right">
+      <select id="unit-select">
+        <option value="1|SPH">Memuat unit...</option>
+      </select>
+      <div class="status" title="Terhubung">
+        <span class="status-dot"></span>
+      </div>
+    </div>
+  </header>
+
+  <div id="log">
+    <div class="empty-state" id="empty-state">
+      <span class="mono">STANDBY</span>
+      Tanyakan prosedur operasi, misalnya:<br>
+      "Apa langkah sebelum unit start-up?"<br>
+      Jawaban akan menyertakan rujukan IK.
+    </div>
+  </div>
+
+  <div id="input-bar">
+    <textarea id="question" rows="1" placeholder="Tulis pertanyaan..." aria-label="Pertanyaan operator"></textarea>
+    <button id="send-btn" aria-label="Kirim pertanyaan">&#8593;</button>
+  </div>
+
+</div>
+
+<script src="/lib/marked.min.js"></script>
+<script src="/lib/purify.min.js"></script>
+<script>
+  const log = document.getElementById('log');
+  const emptyState = document.getElementById('empty-state');
+  const questionInput = document.getElementById('question');
+  const sendBtn = document.getElementById('send-btn');
+  const unitSelect = document.getElementById('unit-select');
+
+  // Label lokasi yang enak dibaca -- kalau ada lokasi baru yang belum ada di sini,
+  // tetap tampil pakai kode mentahnya (tidak memblokir fungsi, cuma kurang cantik).
+  const LOKASI_LABELS = { SPH: 'Sipansihaporas' };
+
+  async function loadUnits() {
+    try {
+      const res = await fetch('/units');
+      const data = await res.json();
+      const units = data.units || [];
+      if (units.length === 0) throw new Error('Daftar unit kosong');
+
+      unitSelect.innerHTML = '';
+      units.forEach((u) => {
+        const opt = document.createElement('option');
+        opt.value = u.unit + '|' + u.lokasi;
+        opt.textContent = (LOKASI_LABELS[u.lokasi] || u.lokasi) + ' — Unit ' + u.unit;
+        unitSelect.appendChild(opt);
+      });
+    } catch (err) {
+      console.warn('Gagal memuat daftar unit, pakai fallback:', err.message);
+      unitSelect.innerHTML = '<option value="1|SPH">Sipansihaporas — Unit 1</option>';
+    }
+  }
+
+  loadUnits();
+
+  let sessionId = null;
+
+  // Auto-grow textarea
+  questionInput.addEventListener('input', () => {
+    questionInput.style.height = 'auto';
+    questionInput.style.height = Math.min(questionInput.scrollHeight, 120) + 'px';
+  });
+
+  questionInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendQuestion();
+    }
+  });
+
+  sendBtn.addEventListener('click', sendQuestion);
+
+  function addMessage(role, text) {
+    if (emptyState) emptyState.remove();
+    const msg = document.createElement('div');
+    msg.className = 'msg ' + role;
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = text;
+    msg.appendChild(bubble);
+    log.appendChild(msg);
+    log.scrollTop = log.scrollHeight;
+    return { msg, bubble };
+  }
+
+  // Render jawaban AI (markdown) jadi HTML aman.
+  // Kalau marked/DOMPurify gagal termuat (mis. file belum di-copy ke server),
+  // fallback ke teks polos supaya chat tetap jalan, bukan blank/error.
+  function renderMarkdown(text) {
+    if (typeof marked === 'undefined' || typeof DOMPurify === 'undefined') {
+      console.warn('marked/DOMPurify tidak termuat — fallback ke teks polos.');
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    const rawHtml = marked.parse(text, { breaks: true });
+    return DOMPurify.sanitize(rawHtml, {
+      ALLOWED_TAGS: ['p', 'strong', 'em', 'ul', 'ol', 'li', 'br', 'blockquote', 'code', 'h1', 'h2', 'h3', 'h4'],
+      ALLOWED_ATTR: [],
+    });
+  }
+
+  function addLoadingMessage() {
+    const { msg, bubble } = addMessage('ai', 'Mencari rujukan IK...');
+    msg.classList.add('loading');
+    return msg;
+  }
+
+  function renderAiAnswer(container, answer, sources, safetyNote, messageId) {
+    container.classList.remove('loading');
+    container.innerHTML = '';
+
+    const label = document.createElement('div');
+    label.className = 'readout-label mono';
+    label.textContent = 'AI ASISTEN';
+    container.appendChild(label);
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.innerHTML = renderMarkdown(answer);
+    container.appendChild(bubble);
+
+    if (sources && sources.length > 0) {
+      const sourcesEl = document.createElement('div');
+      sourcesEl.className = 'sources';
+      sources.forEach((s) => {
+        const chip = document.createElement('div');
+        chip.className = 'source-chip mono';
+        chip.innerHTML = '<span class="doc-num">' + s.nomor_ik + '</span> ' + (s.label || '');
+        sourcesEl.appendChild(chip);
+      });
+      container.appendChild(sourcesEl);
+
+      // Foto langkah/lampiran (kalau ada) dari chunk yang dikutip -- ditampilkan sebagai
+      // thumbnail di bawah jawaban, digabung dari semua sumber & dibuang duplikatnya.
+      const photoUrls = [...new Set(sources.flatMap((s) => s.photo_urls || []))];
+      if (photoUrls.length > 0) {
+        const photosEl = document.createElement('div');
+        photosEl.className = 'answer-photos';
+        photoUrls.forEach((url) => {
+          const link = document.createElement('a');
+          link.className = 'answer-photo-thumb';
+          link.href = url;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          const img = document.createElement('img');
+          img.src = url;
+          img.alt = 'Foto rujukan IK';
+          img.loading = 'lazy';
+          link.appendChild(img);
+          photosEl.appendChild(link);
+        });
+        container.appendChild(photosEl);
+      }
+    }
+
+    if (safetyNote) {
+      const callout = document.createElement('div');
+      callout.className = 'safety-callout';
+
+      const icon = document.createElement('span');
+      icon.className = 'icon';
+      icon.textContent = '⚠️';
+
+      const textWrap = document.createElement('div');
+      textWrap.className = 'text';
+      const heading = document.createElement('strong');
+      heading.textContent = 'Perhatian Keselamatan';
+      const body = document.createElement('div');
+      body.innerHTML = renderMarkdown(safetyNote);
+      textWrap.appendChild(heading);
+      textWrap.appendChild(body);
+
+      callout.appendChild(icon);
+      callout.appendChild(textWrap);
+      container.appendChild(callout);
+    }
+
+    renderFeedbackRow(container, messageId);
+
+    log.scrollTop = log.scrollHeight;
+  }
+
+  // Baris tombol 👍/👎 di bawah jawaban AI. 👎 membuka kotak komentar opsional
+  // (boleh dilewati) supaya feedback-nya actionable, bukan cuma angka.
+  function renderFeedbackRow(container, messageId) {
+    if (!messageId) return; // backend lama / respons tanpa message_id -- lewati diam-diam
+
+    const row = document.createElement('div');
+    row.className = 'feedback-row';
+
+    function showThanks() {
+      row.innerHTML = '<span class="feedback-note">Terima kasih atas masukannya.</span>';
+    }
+
+    async function sendFeedback(rating, comment) {
+      try {
+        await fetch('/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message_id: messageId, rating, comment: comment || undefined }),
+        });
+      } catch (err) {
+        console.warn('Gagal kirim feedback:', err.message);
+      }
+      showThanks();
+    }
+
+    const upBtn = document.createElement('button');
+    upBtn.className = 'feedback-btn up';
+    upBtn.textContent = '👍 Membantu';
+    upBtn.addEventListener('click', () => sendFeedback('up', ''));
+
+    const downBtn = document.createElement('button');
+    downBtn.className = 'feedback-btn down';
+    downBtn.textContent = '👎 Kurang tepat';
+    downBtn.addEventListener('click', () => {
+      row.innerHTML = '';
+      const box = document.createElement('div');
+      box.className = 'feedback-comment-box';
+
+      const textarea = document.createElement('textarea');
+      textarea.rows = 2;
+      textarea.placeholder = 'Opsional: apa yang kurang tepat dari jawaban ini?';
+
+      const actions = document.createElement('div');
+      actions.className = 'feedback-comment-actions';
+
+      const sendBtn = document.createElement('button');
+      sendBtn.className = 'send';
+      sendBtn.textContent = 'Kirim';
+      sendBtn.addEventListener('click', () => sendFeedback('down', textarea.value.trim()));
+
+      const skipBtn = document.createElement('button');
+      skipBtn.className = 'skip';
+      skipBtn.textContent = 'Lewati';
+      skipBtn.addEventListener('click', () => sendFeedback('down', ''));
+
+      actions.appendChild(sendBtn);
+      actions.appendChild(skipBtn);
+      box.appendChild(textarea);
+      box.appendChild(actions);
+      row.appendChild(box);
+      textarea.focus();
+    });
+
+    row.appendChild(upBtn);
+    row.appendChild(downBtn);
+    container.appendChild(row);
+  }
+
+  function renderError(container, errorText) {
+    container.classList.remove('loading');
+    container.innerHTML = '';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble error-bubble';
+    bubble.textContent = 'Gagal mendapatkan jawaban: ' + errorText;
+    container.appendChild(bubble);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  async function sendQuestion() {
+    const question = questionInput.value.trim();
+    if (!question) return;
+
+    const [unit, lokasi] = unitSelect.value.split('|');
+
+    addMessage('operator', question);
+    questionInput.value = '';
+    questionInput.style.height = 'auto';
+    sendBtn.disabled = true;
+
+    const loadingMsg = addLoadingMessage();
+
+    try {
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, unit, lokasi, session_id: sessionId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        renderError(loadingMsg, data.error || ('HTTP ' + res.status));
+      } else {
+        sessionId = data.session_id;
+        renderAiAnswer(loadingMsg, data.answer, data.sources, data.safety_note, data.message_id);
+      }
+    } catch (err) {
+      renderError(loadingMsg, err.message);
+    } finally {
+      sendBtn.disabled = false;
+    }
+  }
+</script>
+</body>
+</html>

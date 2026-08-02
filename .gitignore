@@ -1,0 +1,7 @@
+.env
+.env.*
+node_modules/
+server.log
+*.log
+.Ds_Store
+*.bak
